@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  expenses:
+    build: .
+    ports:
+      - "5000:5000"
+    volumes:
+      - expenses-data:/app/data
+    environment:
+      - AUTH_USERNAME=${AUTH_USERNAME:-admin}
+      - AUTH_PASSWORD=${AUTH_PASSWORD:-admin}
+      - SESSION_SECRET=${SESSION_SECRET:-change-me-to-random-string}
+      - DB_PATH=/app/data/expenses.db
+      - NODE_ENV=production
+    restart: unless-stopped
+
+volumes:
+  expenses-data:

@@ -1,0 +1,21 @@
+node_modules/
+dist/
+data/
+.claude/
+*.db
+*.db-wal
+*.db-shm
+.env
+.env.local
+*.log
+*.tsbuildinfo
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Build output (vite build -> server/public/)
+server/public/
