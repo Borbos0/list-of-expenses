@@ -16,6 +16,7 @@ export const transactionSchema = z.object({
   import_batch_id: z.number().nullable(),
   fingerprint: z.string().nullable(),
   tags: z.string().nullable(),
+  cashback_kopeks: z.number().int().default(0),
   // joined fields
   category_name: z.string().nullable().optional(),
   from_tag: z.string().nullable().optional(),
@@ -42,6 +43,8 @@ export const transactionFilterSchema = z.object({
   type: transactionTypeSchema.optional(),
   category_id: z.coerce.number().optional(),
   search: z.string().optional(),
+  has_cashback: z.coerce.boolean().optional(),
+  no_category: z.coerce.boolean().optional(),
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().positive().max(200).default(50),
 });

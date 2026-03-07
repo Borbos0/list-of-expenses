@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
-import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
-import { apiRequest } from '../api/client.js';
-import { formatRubles, formatDateTime } from '../lib/format.js';
-import type { TimeseriesPoint, Transaction } from '@expenses/shared';
+import { useState, useEffect, useCallback } from "react";
+import { useParams, useSearchParams, useNavigate } from "react-router-dom";
+import { apiRequest } from "../api/client.js";
+import { formatRubles, formatDateTime } from "../lib/format.js";
+import type { TimeseriesPoint, Transaction } from "@expenses/shared";
 import {
   BarChart,
   Bar,
@@ -11,7 +11,7 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-} from 'recharts';
+} from "recharts";
 
 interface TransactionsResponse {
   data: Transaction[];
@@ -25,10 +25,11 @@ export function CategoryDetailPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
-  const from = searchParams.get('from') || '';
-  const to = searchParams.get('to') || '';
-  const type = searchParams.get('type') || 'expense';
-  const categoryName = searchParams.get('name') || 'Категория';
+  const from = searchParams.get("from") || "";
+  const to = searchParams.get("to") || "";
+  const type = searchParams.get("type") || "expense";
+  const categoryName = searchParams.get("name") || "Категория";
+  const isCashback = type === "cashback";
 
   const [timeseries, setTimeseries] = useState<TimeseriesPoint[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -37,33 +38,43 @@ export function CategoryDetailPage() {
   const limit = 20;
 
   useEffect(() => {
-    if (!categoryId || !from || !to) return;
+    if (!categoryId || !from || !to || isCashback) return;
     const params = new URLSearchParams({
-      from, to,
-      group: 'day',
-      type: 'both',
+      from,
+      to,
+      group: "day",
+      type: "both",
       category_id: categoryId,
     });
     apiRequest<TimeseriesPoint[]>(`/api/stats/timeseries?${params}`)
       .then(setTimeseries)
       .catch(() => {});
-  }, [categoryId, from, to]);
+  }, [categoryId, from, to, isCashback]);
 
   const fetchTransactions = useCallback(async () => {
     if (!categoryId || !from || !to) return;
     const params = new URLSearchParams({
-      from, to,
-      category_id: categoryId,
+      from,
+      to,
       page: String(page),
       limit: String(limit),
     });
-    if (type) params.set('type', type);
+    if (isCashback) {
+      params.set("has_cashback", "1");
+    } else {
+      params.set("category_id", categoryId);
+      if (type) params.set("type", type);
+    }
     try {
-      const res = await apiRequest<TransactionsResponse>(`/api/transactions?${params}`);
+      const res = await apiRequest<TransactionsResponse>(
+        `/api/transactions?${params}`,
+      );
       setTransactions(res.data);
       setTotal(res.total);
-    } catch { /* silently handled */ }
-  }, [categoryId, from, to, type, page]);
+    } catch {
+      /* silently handled */
+    }
+  }, [categoryId, from, to, type, isCashback, page]);
 
   useEffect(() => {
     fetchTransactions();
@@ -73,7 +84,7 @@ export function CategoryDetailPage() {
 
   const chartData = timeseries.map((p) => ({
     period: p.period.slice(5), // "02-14" вместо "2026-02-14"
-    amount: type === 'income' ? p.income : p.expense,
+    amount: type === "income" ? p.income : p.expense,
   }));
 
   return (
@@ -91,34 +102,50 @@ export function CategoryDetailPage() {
         </span>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Столбчатый график */}
-        <div className="bg-surface rounded-xl shadow-lg shadow-black/20 p-5">
-          <h2 className="text-lg font-semibold mb-4">Динамика по дням</h2>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#64748b" />
-              <XAxis dataKey="period" tick={{ fontSize: 12, fill: '#475569' }} />
-              <YAxis
-                tick={{ fontSize: 12, fill: '#475569' }}
-                tickFormatter={(v) => `${(v / 100).toLocaleString('ru-RU')} \u20BD`}
-              />
-              <Tooltip formatter={(value: number) => formatRubles(value)} contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: 8, color: '#e2e8f0' }} labelStyle={{ color: '#e2e8f0' }} />
-              <Bar
-                dataKey="amount"
-                fill="#3b82f6"
-                radius={[4, 4, 0, 0]}
-                name={type === 'income' ? 'Доходы' : 'Расходы'}
-              />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+      <div
+        className={`grid grid-cols-1 ${!isCashback ? "lg:grid-cols-2" : ""} gap-6`}
+      >
+        {/* Столбчатый график - скрыт для кэшбэка */}
+        {!isCashback && (
+          <div className="bg-surface rounded-xl shadow-lg shadow-black/20 p-5">
+            <h2 className="text-lg font-semibold mb-4">Динамика по дням</h2>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#64748b" />
+                <XAxis
+                  dataKey="period"
+                  tick={{ fontSize: 12, fill: "#475569" }}
+                />
+                <YAxis
+                  tick={{ fontSize: 12, fill: "#475569" }}
+                  tickFormatter={(v) =>
+                    `${(v / 100).toLocaleString("ru-RU")} \u20BD`
+                  }
+                />
+                <Tooltip
+                  formatter={(value: number) => formatRubles(value)}
+                  contentStyle={{
+                    backgroundColor: "#1e293b",
+                    border: "1px solid #334155",
+                    borderRadius: 8,
+                    color: "#e2e8f0",
+                  }}
+                  labelStyle={{ color: "#e2e8f0" }}
+                />
+                <Bar
+                  dataKey="amount"
+                  fill="#3b82f6"
+                  radius={[4, 4, 0, 0]}
+                  name={type === "income" ? "Доходы" : "Расходы"}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
 
         {/* Список операций */}
         <div className="bg-surface rounded-xl shadow-lg shadow-black/20 p-5">
-          <h2 className="text-lg font-semibold mb-4">
-            Операции ({total})
-          </h2>
+          <h2 className="text-lg font-semibold mb-4">Операции ({total})</h2>
           <div className="space-y-1">
             {transactions.map((tx) => (
               <div
@@ -126,18 +153,36 @@ export function CategoryDetailPage() {
                 className="flex items-center justify-between py-2 border-b border-border last:border-0"
               >
                 <div className="min-w-0 flex-1">
-                  <div className="text-sm truncate">{tx.description || '—'}</div>
-                  <div className="text-xs text-text-secondary">{formatDateTime(tx.date_time)}</div>
+                  <div className="text-sm truncate">
+                    {tx.description || "—"}
+                  </div>
+                  <div className="text-xs text-text-secondary">
+                    {formatDateTime(tx.date_time)}
+                  </div>
                 </div>
-                <div className={`text-sm font-medium ml-4 whitespace-nowrap ${
-                  tx.type === 'income' ? 'text-success' : tx.type === 'expense' ? 'text-danger' : ''
-                }`}>
-                  {formatRubles(tx.amount_kopeks)}
+                <div className="text-sm font-medium ml-4 whitespace-nowrap text-success">
+                  {isCashback ? (
+                    `+${formatRubles(tx.cashback_kopeks)}`
+                  ) : (
+                    <span
+                      className={
+                        tx.type === "income"
+                          ? "text-success"
+                          : tx.type === "expense"
+                            ? "text-danger"
+                            : ""
+                      }
+                    >
+                      {formatRubles(tx.amount_kopeks)}
+                    </span>
+                  )}
                 </div>
               </div>
             ))}
             {transactions.length === 0 && (
-              <div className="text-center text-text-secondary py-8">Нет операций</div>
+              <div className="text-center text-text-secondary py-8">
+                Нет операций
+              </div>
             )}
           </div>
 

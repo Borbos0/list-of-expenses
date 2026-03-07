@@ -131,6 +131,10 @@ function suggestMapping(headers: string[]): Record<string, string> {
   const extraIdx = lower.findIndex((h) => h.includes('округлен') || h.includes('инвесткопилк'));
   if (extraIdx >= 0) mapping.extra_amount = headers[extraIdx];
 
+  // Кэшбэк
+  const cashbackIdx = lower.findIndex((h) => h.includes('кэшбэк') || h.includes('кешбэк') || h === 'cashback');
+  if (cashbackIdx >= 0) mapping.cashback = headers[cashbackIdx];
+
   return mapping;
 }
 
@@ -236,6 +240,7 @@ export async function importRoutes(fastify: FastifyInstance) {
       const mcc = getCol(row, mapping.mcc) || null;
       const bankCategory = getCol(row, mapping.bank_category) || null;
       const extraAmountStr = getCol(row, mapping.extra_amount);
+      const cashbackStr = getCol(row, mapping.cashback);
 
       const operationType = getCol(row, mapping.operation_type).toLowerCase();
 
@@ -247,6 +252,7 @@ export async function importRoutes(fastify: FastifyInstance) {
         }
       }
       const extraAmountKopeks = parseAmount(extraAmountStr);
+      const cashbackKopeks = parseAmount(cashbackStr);
 
       // Парсинг даты (различные форматы российских банков)
       let dateTime = dateStr;
@@ -290,6 +296,7 @@ export async function importRoutes(fastify: FastifyInstance) {
         mcc,
         bank_category_raw: bankCategory,
         extra_amount_kopeks: extraAmountKopeks,
+        cashback_kopeks: cashbackKopeks,
         auto_type: null,
         auto_category_id: null,
         auto_category_name: null,
@@ -443,8 +450,8 @@ export async function importRoutes(fastify: FastifyInstance) {
     let duplicateCount = 0;
 
     const insertTx = fastify.db.prepare(`
-      INSERT OR IGNORE INTO transactions (user_id, date_time, type, amount_kopeks, category_id, description, merchant_norm, mcc, bank_category_raw, import_batch_id, fingerprint)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT OR IGNORE INTO transactions (user_id, date_time, type, amount_kopeks, category_id, description, merchant_norm, mcc, bank_category_raw, import_batch_id, fingerprint, cashback_kopeks)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const insertTransfer = fastify.db.prepare(
@@ -479,6 +486,7 @@ export async function importRoutes(fastify: FastifyInstance) {
           row.bank_category_raw,
           Number(batchId),
           row.fingerprint,
+          row.cashback_kopeks || 0,
         );
 
         if (result.changes > 0) {
@@ -508,11 +516,13 @@ export async function importRoutes(fastify: FastifyInstance) {
               null,
               Number(batchId),
               extraFingerprint,
+              0,
             );
             if (extraResult.changes > 0) {
               imported++;
             }
           }
+
         } else {
           // INSERT OR IGNORE — коллизия фингерпринта
           duplicateCount++;

@@ -18,6 +18,7 @@ export async function statsRoutes(fastify: FastifyInstance) {
       SELECT
         COALESCE(SUM(CASE WHEN t.type = 'income' AND COALESCE(c.include_in_income_analytics, 1) = 1 THEN t.amount_kopeks ELSE 0 END), 0) AS total_income,
         COALESCE(SUM(CASE WHEN t.type = 'expense' AND COALESCE(c.include_in_expense_analytics, 1) = 1 THEN ABS(t.amount_kopeks) ELSE 0 END), 0) AS total_expense,
+        COALESCE(SUM(CASE WHEN t.type = 'expense' THEN t.cashback_kopeks ELSE 0 END), 0) AS total_cashback,
         COUNT(*) AS transaction_count
       FROM transactions t
       LEFT JOIN categories c ON t.category_id = c.id
@@ -25,6 +26,7 @@ export async function statsRoutes(fastify: FastifyInstance) {
     `).get(userId, from, to + 'T23:59:59') as {
       total_income: number;
       total_expense: number;
+      total_cashback: number;
       transaction_count: number;
     };
 
@@ -33,9 +35,9 @@ export async function statsRoutes(fastify: FastifyInstance) {
     ).get(userId) as { last_date: string | null };
 
     return {
-      total_income: row.total_income,
+      total_income: row.total_income + row.total_cashback,
       total_expense: row.total_expense,
-      net: row.total_income - row.total_expense,
+      net: row.total_income + row.total_cashback - row.total_expense,
       transaction_count: row.transaction_count,
       last_transaction_date: lastTx.last_date,
     };
@@ -75,7 +77,8 @@ export async function statsRoutes(fastify: FastifyInstance) {
     const rows = fastify.db.prepare(`
       SELECT
         ${groupExpr} AS period,
-        COALESCE(SUM(CASE WHEN t.type = 'income' AND COALESCE(c.include_in_income_analytics, 1) = 1 THEN t.amount_kopeks ELSE 0 END), 0) AS income,
+        COALESCE(SUM(CASE WHEN t.type = 'income' AND COALESCE(c.include_in_income_analytics, 1) = 1 THEN t.amount_kopeks ELSE 0 END), 0)
+          + COALESCE(SUM(CASE WHEN t.type = 'expense' THEN t.cashback_kopeks ELSE 0 END), 0) AS income,
         COALESCE(SUM(CASE WHEN t.type = 'expense' AND COALESCE(c.include_in_expense_analytics, 1) = 1 THEN ABS(t.amount_kopeks) ELSE 0 END), 0) AS expense
       FROM transactions t
       LEFT JOIN categories c ON t.category_id = c.id
@@ -131,6 +134,26 @@ export async function statsRoutes(fastify: FastifyInstance) {
       total: number;
       transaction_count: number;
     }>;
+
+    // Для доходов добавляем кэшбэк из расходных транзакций
+    if (type === 'income') {
+      const cashbackRow = fastify.db.prepare(`
+        SELECT COALESCE(SUM(cashback_kopeks), 0) AS total, COUNT(*) AS transaction_count
+        FROM transactions
+        WHERE user_id = ? AND cashback_kopeks > 0 AND date_time >= ? AND date_time <= ?
+      `).get(userId, from, to + 'T23:59:59') as { total: number; transaction_count: number };
+
+      if (cashbackRow.total > 0) {
+        const existing = rows.find((r) => r.category_name === 'Кэшбэк');
+        if (existing) {
+          existing.total += cashbackRow.total;
+          existing.transaction_count += cashbackRow.transaction_count;
+        } else {
+          rows.push({ category_id: null, category_name: 'Кэшбэк', total: cashbackRow.total, transaction_count: cashbackRow.transaction_count });
+        }
+        rows.sort((a, b) => b.total - a.total);
+      }
+    }
 
     const grandTotal = rows.reduce((sum, r) => sum + r.total, 0);
 

@@ -46,6 +46,7 @@ export function ImportPage() {
     { key: 'mcc', label: 'MCC', required: false },
     { key: 'bank_category', label: 'Категория банка', required: false },
     { key: 'extra_amount', label: 'Округление (доп. сумма)', required: false },
+    { key: 'cashback', label: 'Кэшбэк', required: false },
   ];
 
   const handleUpload = async (file: File) => {

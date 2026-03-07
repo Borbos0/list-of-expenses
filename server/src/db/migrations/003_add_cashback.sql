@@ -1,0 +1,1 @@
+ALTER TABLE transactions ADD COLUMN cashback_kopeks INTEGER NOT NULL DEFAULT 0;

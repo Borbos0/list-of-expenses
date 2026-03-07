@@ -20,6 +20,7 @@ export const columnMappingSchema = z.object({
   bank_category: z.string().optional(),
   extra_amount: z.string().optional(),
   operation_type: z.string().optional(),
+  cashback: z.string().optional(),
 });
 
 export const reviewDecisionSchema = z.object({
@@ -42,6 +43,7 @@ export const processedRowSchema = z.object({
   mcc: z.string().nullable(),
   bank_category_raw: z.string().nullable(),
   extra_amount_kopeks: z.number().default(0),
+  cashback_kopeks: z.number().default(0),
   auto_type: z.enum(['expense', 'income', 'transfer', 'ignore']).nullable(),
   auto_category_id: z.number().nullable(),
   auto_category_name: z.string().nullable(),
