@@ -23,6 +23,7 @@ export function TransactionModal({ transaction, categories, onClose, onSaved }: 
     amount: transaction ? kopeksToRubleInput(Math.abs(transaction.amount_kopeks)) : '',
     category_id: transaction?.category_id?.toString() || '',
     description: transaction?.description || '',
+    tags: transaction?.tags || '',
     from_tag: transaction?.from_tag || '',
     to_tag: transaction?.to_tag || '',
   });
@@ -69,6 +70,7 @@ export function TransactionModal({ transaction, categories, onClose, onSaved }: 
       amount_kopeks: form.type === 'expense' ? -kopeks : kopeks,
       category_id: form.category_id ? Number(form.category_id) : null,
       description: form.description,
+      tags: form.tags || undefined,
       ...(form.type === 'transfer' ? { from_tag: form.from_tag, to_tag: form.to_tag } : {}),
     };
 
@@ -152,6 +154,16 @@ export function TransactionModal({ transaction, categories, onClose, onSaved }: 
               type="text"
               value={form.description}
               onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+              className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-input-bg text-text"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-text mb-1">Теги</label>
+            <input
+              type="text"
+              value={form.tags}
+              onChange={(e) => setForm((f) => ({ ...f, tags: e.target.value }))}
+              placeholder="отпуск, работа, подарок..."
               className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-input-bg text-text"
             />
           </div>

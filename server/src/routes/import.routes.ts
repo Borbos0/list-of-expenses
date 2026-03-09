@@ -143,6 +143,21 @@ export async function importRoutes(fastify: FastifyInstance) {
     limits: { fileSize: 50 * 1024 * 1024 }, // 50 МБ
   });
 
+  // История импортов
+  fastify.get('/history', async (request, reply) => {
+    if (!request.user) return reply.status(401).send({ error: 'Unauthorized' });
+
+    const rows = fastify.db.prepare(`
+      SELECT id, source_name, created_at, rows_total, rows_imported, rows_skipped, rows_need_review
+      FROM import_batches
+      WHERE user_id = ?
+      ORDER BY created_at DESC
+      LIMIT 50
+    `).all(request.user.id);
+
+    return rows;
+  });
+
   // Шаг 1: Загрузка файла
   fastify.post('/upload', async (request, reply) => {
     if (!request.user) return reply.status(401).send({ error: 'Unauthorized' });

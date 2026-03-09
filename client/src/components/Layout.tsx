@@ -5,6 +5,7 @@ const navItems = [
   { to: '/dashboard', label: 'Дашборд' },
   { to: '/transactions', label: 'Операции' },
   { to: '/import', label: 'Импорт' },
+  { to: '/import-history', label: 'История импортов' },
   { to: '/rules', label: 'Правила' },
   { to: '/categories', label: 'Категории' },
   { to: '/settings', label: 'Настройки' },

@@ -14,6 +14,7 @@ export interface FilterParams {
   type: string;
   category_id: string;
   search: string;
+  tag: string;
   page: number;
 }
 
@@ -27,6 +28,7 @@ export function useFilterParams() {
     type: searchParams.get('type') || '',
     category_id: searchParams.get('category_id') || '',
     search: searchParams.get('search') || '',
+    tag: searchParams.get('tag') || '',
     page: Number(searchParams.get('page')) || 1,
   }), [searchParams, defaults]);
 

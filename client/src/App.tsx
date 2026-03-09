@@ -9,6 +9,7 @@ import { RulesPage } from './pages/RulesPage.js';
 import { CategoriesPage } from './pages/CategoriesPage.js';
 import { SettingsPage } from './pages/SettingsPage.js';
 import { CategoryDetailPage } from './pages/CategoryDetailPage.js';
+import { ImportHistoryPage } from './pages/ImportHistoryPage.js';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -47,6 +48,7 @@ export function App() {
         <Route path="rules" element={<RulesPage />} />
         <Route path="categories" element={<CategoriesPage />} />
         <Route path="category/:categoryId" element={<CategoryDetailPage />} />
+        <Route path="import-history" element={<ImportHistoryPage />} />
         <Route path="settings" element={<SettingsPage />} />
       </Route>
     </Routes>

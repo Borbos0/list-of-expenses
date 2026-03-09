@@ -67,6 +67,7 @@ export function TransactionsPage() {
       params.set("category_id", filters.category_id);
     }
     if (filters.search) params.set("search", filters.search);
+    if (filters.tag) params.set("tag", filters.tag);
 
     try {
       const res = await apiRequest<TransactionsResponse>(
@@ -158,6 +159,13 @@ export function TransactionsPage() {
           placeholder="Поиск..."
           className="px-3 py-1.5 border border-border rounded-lg text-sm bg-input-bg text-text"
         />
+        <input
+          type="text"
+          value={filters.tag}
+          onChange={(e) => setFilter("tag", e.target.value)}
+          placeholder="Тег..."
+          className="px-3 py-1.5 border border-border rounded-lg text-sm bg-input-bg text-text"
+        />
       </div>
 
       {/* Таблица */}
@@ -170,6 +178,7 @@ export function TransactionsPage() {
               <th className="px-4 py-3">Сумма</th>
               <th className="px-4 py-3">Категория</th>
               <th className="px-4 py-3">Описание</th>
+              <th className="px-4 py-3">Теги</th>
               <th className="px-4 py-3 w-24"></th>
             </tr>
           </thead>
@@ -203,6 +212,9 @@ export function TransactionsPage() {
                 <td className="px-4 py-3 text-text-secondary max-w-xs truncate">
                   {tx.description || "—"}
                 </td>
+                <td className="px-4 py-3 text-text-secondary max-w-xs truncate">
+                  {tx.tags || "—"}
+                </td>
                 <td className="px-4 py-3">
                   <div className="flex gap-2">
                     <button
@@ -227,7 +239,7 @@ export function TransactionsPage() {
             {transactions.length === 0 && (
               <tr>
                 <td
-                  colSpan={6}
+                  colSpan={7}
                   className="px-4 py-8 text-center text-text-secondary"
                 >
                   Нет операций

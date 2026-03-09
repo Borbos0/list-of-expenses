@@ -10,7 +10,7 @@ export async function transactionRoutes(fastify: FastifyInstance) {
       return reply.status(400).send({ error: 'Invalid query', details: parsed.error.issues });
     }
 
-    const { from, to, type, category_id, search, has_cashback, no_category, page, limit } = parsed.data;
+    const { from, to, type, category_id, search, has_cashback, no_category, tag, page, limit } = parsed.data;
     const userId = request.user.id;
 
     const conditions: string[] = ['t.user_id = ?'];
@@ -25,11 +25,15 @@ export async function transactionRoutes(fastify: FastifyInstance) {
       params.push(`%${search}%`, `%${search}%`);
     }
     if (has_cashback) {
-      conditions.push('t.cashback_kopeks > 0');
+      conditions.push("(t.cashback_kopeks > 0 OR (t.type = 'income' AND (LOWER(t.description) LIKE '%кэшбэк%' OR LOWER(t.description) LIKE '%cashback%')))");
     }
     if (no_category) {
       conditions.push('t.category_id IS NULL AND t.type != ?');
       params.push('ignore');
+    }
+    if (tag) {
+      conditions.push('t.tags LIKE ?');
+      params.push(`%${tag}%`);
     }
 
     const where = conditions.join(' AND ');

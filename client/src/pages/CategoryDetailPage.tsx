@@ -160,18 +160,21 @@ export function CategoryDetailPage() {
                     {formatDateTime(tx.date_time)}
                   </div>
                 </div>
-                <div className="text-sm font-medium ml-4 whitespace-nowrap text-success">
+                <div className="ml-4 whitespace-nowrap text-right">
                   {isCashback ? (
-                    `+${formatRubles(tx.cashback_kopeks)}`
+                    tx.type === 'income' ? (
+                      <div className="text-sm font-medium text-success">{formatRubles(tx.amount_kopeks)}</div>
+                    ) : (
+                      <>
+                        <div className="text-sm font-medium text-danger">{formatRubles(tx.amount_kopeks)}</div>
+                        <div className="text-xs text-success">+{formatRubles(tx.cashback_kopeks)} кэшбэк</div>
+                      </>
+                    )
                   ) : (
                     <span
-                      className={
-                        tx.type === "income"
-                          ? "text-success"
-                          : tx.type === "expense"
-                            ? "text-danger"
-                            : ""
-                      }
+                      className={`text-sm font-medium ${
+                        tx.type === "income" ? "text-success" : tx.type === "expense" ? "text-danger" : ""
+                      }`}
                     >
                       {formatRubles(tx.amount_kopeks)}
                     </span>

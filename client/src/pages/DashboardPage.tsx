@@ -30,6 +30,33 @@ function getDefaultDates() {
   return { from, to };
 }
 
+function getPreviousPeriod(from: string, to: string) {
+  const fromDate = new Date(from);
+  const toDate = new Date(to);
+  const days = Math.round((toDate.getTime() - fromDate.getTime()) / 86400000) + 1;
+  const prevTo = new Date(fromDate);
+  prevTo.setDate(prevTo.getDate() - 1);
+  const prevFrom = new Date(prevTo);
+  prevFrom.setDate(prevFrom.getDate() - days + 1);
+  return {
+    from: prevFrom.toISOString().slice(0, 10),
+    to: prevTo.toISOString().slice(0, 10),
+  };
+}
+
+function Delta({ current, prev, invertColors = false }: { current: number; prev: number; invertColors?: boolean }) {
+  if (!prev) return null;
+  const pct = Math.round((current - prev) / prev * 100);
+  if (pct === 0) return null;
+  const up = pct > 0;
+  const isGood = invertColors ? !up : up;
+  return (
+    <div className={`text-xs mt-1 ${isGood ? 'text-success' : 'text-danger'}`}>
+      {up ? '▲' : '▼'} {Math.abs(pct)}% vs пред. период
+    </div>
+  );
+}
+
 const tooltipStyle = {
   contentStyle: { backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: 8, color: '#e2e8f0' },
   labelStyle: { color: '#e2e8f0' },
@@ -54,7 +81,9 @@ export function DashboardPage() {
   }, [setSearchParams]);
 
   const [summary, setSummary] = useState<SummaryResponse | null>(null);
+  const [prevSummary, setPrevSummary] = useState<SummaryResponse | null>(null);
   const [timeseries, setTimeseries] = useState<TimeseriesPoint[]>([]);
+  const [topMerchants, setTopMerchants] = useState<Array<{ name: string; total: number; transaction_count: number }>>([]);
   const [byCategory, setByCategory] = useState<CategoryBreakdown[]>([]);
   const [byCategoryIncome, setByCategoryIncome] = useState<CategoryBreakdown[]>([]);
   const [hiddenCategories, setHiddenCategories] = useState<Set<string>>(new Set());
@@ -63,16 +92,22 @@ export function DashboardPage() {
 
   useEffect(() => {
     const params = `from=${dates.from}&to=${dates.to}`;
+    const prev = getPreviousPeriod(dates.from, dates.to);
+    const prevParams = `from=${prev.from}&to=${prev.to}`;
     Promise.all([
       apiRequest<SummaryResponse>(`/api/stats/summary?${params}`),
+      apiRequest<SummaryResponse>(`/api/stats/summary?${prevParams}`),
       apiRequest<TimeseriesPoint[]>(`/api/stats/timeseries?${params}&group=day&type=both`),
       apiRequest<CategoryBreakdown[]>(`/api/stats/by-category?${params}&type=expense`),
       apiRequest<CategoryBreakdown[]>(`/api/stats/by-category?${params}&type=income`),
-    ]).then(([s, t, c, ci]) => {
+      apiRequest<Array<{ name: string; total: number; transaction_count: number }>>(`/api/stats/top-merchants?${params}`),
+    ]).then(([s, sp, t, c, ci, tm]) => {
       setSummary(s);
+      setPrevSummary(sp);
       setTimeseries(t);
       setByCategory(c);
       setByCategoryIncome(ci);
+      setTopMerchants(tm);
     });
   }, [dates]);
 
@@ -114,18 +149,21 @@ export function DashboardPage() {
             <div className="text-2xl font-bold text-success">
               {formatRubles(summary.total_income)}
             </div>
+            {prevSummary && <Delta current={summary.total_income} prev={prevSummary.total_income} />}
           </div>
           <div className="bg-surface rounded-xl shadow-lg shadow-black/20 p-5">
             <div className="text-sm text-text-secondary mb-1">Расходы</div>
             <div className="text-2xl font-bold text-danger">
               {formatRubles(summary.total_expense)}
             </div>
+            {prevSummary && <Delta current={summary.total_expense} prev={prevSummary.total_expense} invertColors />}
           </div>
           <div className="bg-surface rounded-xl shadow-lg shadow-black/20 p-5">
             <div className="text-sm text-text-secondary mb-1">Баланс</div>
             <div className={`text-2xl font-bold ${summary.net >= 0 ? 'text-success' : 'text-danger'}`}>
               {formatRubles(summary.net)}
             </div>
+            {prevSummary && <Delta current={summary.net} prev={prevSummary.net} />}
           </div>
         </div>
       )}
@@ -144,6 +182,33 @@ export function DashboardPage() {
           </AreaChart>
         </ResponsiveContainer>
       </div>
+
+      {/* Топ мерчантов */}
+      {topMerchants.length > 0 && (
+        <div className="bg-surface rounded-xl shadow-lg shadow-black/20 p-5 mb-6">
+          <h2 className="text-lg font-semibold mb-3">Топ расходов</h2>
+          <div className="space-y-2">
+            {topMerchants.map((m) => {
+              const maxTotal = topMerchants[0].total;
+              const pct = Math.round((m.total / maxTotal) * 100);
+              return (
+                <div key={m.name} className="flex items-center gap-3">
+                  <div className="w-36 text-sm truncate shrink-0">{m.name}</div>
+                  <div className="flex-1 bg-surface-hover rounded-full h-2">
+                    <div className="bg-danger h-2 rounded-full" style={{ width: `${pct}%` }} />
+                  </div>
+                  <div className="text-sm font-medium text-danger w-28 text-right shrink-0">
+                    {formatRubles(m.total)}
+                  </div>
+                  <div className="text-xs text-text-secondary w-16 text-right shrink-0">
+                    {m.transaction_count} опер.
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Диаграммы по категориям */}
       <div className="grid grid-cols-2 gap-6">
@@ -232,14 +297,15 @@ export function DashboardPage() {
                       fill={COLORS[byCategoryIncome.findIndex((c) => c.category_name === entry.category_name) % COLORS.length]}
                       className="cursor-pointer"
                       onClick={() => {
-                        const params = new URLSearchParams({
-                          from: dates.from,
-                          to: dates.to,
-                          type: entry.category_id == null ? 'cashback' : 'income',
-                          name: entry.category_name,
-                        });
-                        const id = entry.category_id ?? 'cashback';
-                        navigate(`/category/${id}?${params}`);
+                        if (entry.category_name === 'Кэшбэк') {
+                          const params = new URLSearchParams({ from: dates.from, to: dates.to, type: 'cashback', name: 'Кэшбэк' });
+                          navigate(`/category/cashback?${params}`);
+                        } else if (entry.category_id == null) {
+                          navigate(`/transactions?from=${dates.from}&to=${dates.to}&type=income&category_id=none`);
+                        } else {
+                          const params = new URLSearchParams({ from: dates.from, to: dates.to, type: 'income', name: entry.category_name });
+                          navigate(`/category/${entry.category_id}?${params}`);
+                        }
                       }}
                     />
                   ))}

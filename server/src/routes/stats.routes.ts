@@ -102,6 +102,37 @@ export async function statsRoutes(fastify: FastifyInstance) {
     return { last_transaction_date: row.last_date };
   });
 
+  // Топ мерчантов по расходам
+  fastify.get('/top-merchants', async (request, reply) => {
+    if (!request.user) return reply.status(401).send({ error: 'Unauthorized' });
+
+    const parsed = statsQuerySchema.safeParse(request.query);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: 'Invalid query', details: parsed.error.issues });
+    }
+
+    const { from, to } = parsed.data;
+    const userId = request.user.id;
+
+    const rows = fastify.db.prepare(`
+      SELECT
+        COALESCE(NULLIF(t.merchant_norm, ''), t.description, 'Без описания') AS name,
+        SUM(ABS(t.amount_kopeks)) AS total,
+        COUNT(*) AS transaction_count
+      FROM transactions t
+      WHERE t.user_id = ? AND t.type = 'expense' AND t.date_time >= ? AND t.date_time <= ?
+      GROUP BY name
+      ORDER BY total DESC
+      LIMIT 7
+    `).all(userId, from, to + 'T23:59:59') as Array<{
+      name: string;
+      total: number;
+      transaction_count: number;
+    }>;
+
+    return rows;
+  });
+
   // По категориям
   fastify.get('/by-category', async (request, reply) => {
     if (!request.user) return reply.status(401).send({ error: 'Unauthorized' });
@@ -116,17 +147,22 @@ export async function statsRoutes(fastify: FastifyInstance) {
 
     const analyticsField = type === 'expense' ? 'include_in_expense_analytics' : 'include_in_income_analytics';
 
+    // Для income-транзакций без категории с описанием «кэшбэк» → виртуально относим к «Кэшбэк»
+    const cashbackNameExpr = type === 'income'
+      ? `COALESCE(c.name, CASE WHEN LOWER(t.description) LIKE '%кэшбэк%' OR LOWER(t.description) LIKE '%cashback%' THEN 'Кэшбэк' ELSE 'Без категории' END)`
+      : `COALESCE(c.name, 'Без категории')`;
+
     const rows = fastify.db.prepare(`
       SELECT
         t.category_id,
-        COALESCE(c.name, 'Без категории') AS category_name,
+        ${cashbackNameExpr} AS category_name,
         SUM(ABS(t.amount_kopeks)) AS total,
         COUNT(*) AS transaction_count
       FROM transactions t
       LEFT JOIN categories c ON t.category_id = c.id
       WHERE t.user_id = ? AND t.type = ? AND t.date_time >= ? AND t.date_time <= ?
         AND COALESCE(c.${analyticsField}, 1) = 1
-      GROUP BY t.category_id
+      GROUP BY category_name
       ORDER BY total DESC
     `).all(userId, type, from, to + 'T23:59:59') as Array<{
       category_id: number | null;
